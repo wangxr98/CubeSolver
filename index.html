@@ -1,0 +1,1288 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+  <meta name="theme-color" content="#f6f3eb">
+  <title>CubeVibe · 二阶 / 三阶 / 四阶魔方</title>
+  <style>
+    /* 奶白底、鼠尾草绿主操作、暖琥珀提示；组件共享语义色，统一浅色状态。 */
+    :root { color-scheme: light; --bg: #f6f3eb; --panel: #fffdf7; --line: #dcded2; --text: #303b32; --muted: #65705f; --accent: #42684f; --accent-hover: #33563f; --accent-soft: #e8f0e3; --on-accent: #fffdf7; --surface: #f0f1e9; --surface-hover: #e4e9dc; --hint-bg: #fbf0dc; --hint-hover: #f2e2c1; --hint-text: #785320; --hint-border: #d9c297; }
+    * { box-sizing: border-box; }
+    body { margin: 0; background: var(--bg); color: var(--text); font: 14px/1.6 -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC", "Microsoft YaHei", sans-serif; }
+    button { font: inherit; }
+    button { cursor: pointer; touch-action: manipulation; }
+    button:disabled { cursor: not-allowed; opacity: .4; }
+    button:focus-visible, summary:focus-visible { outline: 2px solid var(--accent); outline-offset: 4px; }
+    .page { width: 100%; min-height: 100svh; padding: 20px clamp(16px, 2vw, 36px) 16px; display: flex; flex-direction: column; }
+    header { display: flex; justify-content: space-between; align-items: center; padding-bottom: 16px; border-bottom: 1px solid var(--line); }
+    .brand { display: flex; align-items: center; gap: 12px; font-size: 25px; font-weight: 750; letter-spacing: -1px; }
+    .brand svg { width: 32px; height: 36px; color: var(--accent); }
+    .brand span { color: var(--accent); }
+    .intro { padding: 20px 0; }
+    .intro-heading { display: flex; align-items: flex-end; justify-content: space-between; gap: 20px; }
+    .intro-heading > p { margin: 0 0 5px; color: var(--muted); }
+    .order-meta { display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 4px 20px; margin-top: 8px; }
+    .eyebrow { margin: 0 0 6px; color: var(--accent); font-size: 11px; letter-spacing: 2px; }
+    h1 { margin: 0; font-size: clamp(24px, 3vw, 34px); font-weight: 600; letter-spacing: -1px; }
+    main { flex: 1; display: grid; grid-template-columns: minmax(0, 1fr) 300px 300px; grid-template-areas: "stage session turns" "stage activity activity"; grid-template-rows: auto minmax(180px, 1fr); gap: 16px; min-height: 590px; }
+    main > * { min-width: 0; }
+    .session-panel { grid-area: session; }
+    .turn-panel { grid-area: turns; }
+    .activity-panel { grid-area: activity; }
+    .panel-description { margin: -8px 0 18px; color: var(--muted); font-size: 12px; }
+    .stage { grid-area: stage; position: relative; min-height: 540px; overflow: hidden; border: 1px solid var(--line); border-radius: 20px; background: radial-gradient(ellipse at 48% 42%, #fffef9 0%, #f1f0e6 62%, #e8e9dd 100%); }
+    #viewport { position: absolute; inset: 0; touch-action: none; }
+    #viewport canvas { display: block; width: 100%; height: 100%; outline: none; }
+    .stage-top { position: absolute; top: 22px; left: 24px; right: 24px; display: flex; justify-content: space-between; gap: 12px; pointer-events: none; }
+    .badge { display: inline-flex; gap: 8px; align-items: center; border: 1px solid #bdcdb4; background: var(--accent-soft); color: #3f6545; padding: 5px 12px; border-radius: 30px; font-size: 12px; }
+    .badge::before { content: ""; width: 6px; height: 6px; background: currentColor; border-radius: 50%; }
+    .badge.mixed { color: var(--hint-text); background: var(--hint-bg); border-color: var(--hint-border); }
+    .stage-label { padding-top: 4px; color: var(--muted); font: 11px/2 ui-monospace, monospace; letter-spacing: 1px; }
+    .stage-bottom { position: absolute; bottom: 24px; left: 20px; right: 20px; text-align: center; pointer-events: none; }
+    .palette { display: flex; justify-content: center; flex-wrap: wrap; gap: 14px; color: var(--muted); font-size: 11px; }
+    .palette span { display: flex; align-items: center; gap: 5px; }
+    .swatch { width: 8px; height: 8px; border-radius: 2px; background: var(--color); box-shadow: 0 0 0 1px #53604740; }
+    .stage-bottom p { color: var(--muted); margin: 16px 0 0; font-size: 12px; }
+    #boot-message { position: absolute; top: 43%; left: 10%; right: 10%; text-align: center; color: var(--text); pointer-events: none; }
+    .panel { border: 1px solid var(--line); background: var(--panel); border-radius: 20px; padding: 20px; box-shadow: 0 4px 18px #454b3205; }
+    .section-heading { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-bottom: 17px; }
+    h2 { margin: 0; font-size: 16px; font-weight: 600; }
+    .section-number { color: var(--muted); font: 11px ui-monospace, monospace; }
+    button { min-height: 44px; padding: 10px 12px; color: var(--text); border: 1px solid var(--line); border-radius: 9px; background: var(--surface); transition: background .18s, border-color .18s; }
+    button:hover:not(:disabled) { background: var(--surface-hover); border-color: #a9b89f; }
+    button.primary { background: var(--accent); border-color: var(--accent); color: var(--on-accent); font-weight: 650; }
+    button.primary:hover:not(:disabled) { background: var(--accent-hover); border-color: var(--accent-hover); }
+    .solver-state { margin: 12px 0 0; font-size: 11px; color: var(--muted); }
+    .solver-state::before { content: ""; display: inline-block; width: 5px; height: 5px; margin-right: 7px; background: #929b8b; border-radius: 50%; vertical-align: 2px; }
+    .solver-state.ready::before { background: var(--accent); }
+    #feedback { min-height: 20px; margin: 9px 0 0; font-size: 12px; color: var(--muted); overflow-wrap: anywhere; }
+    #feedback.error { color: #a93e35; }
+    .progress-heading { display: flex; justify-content: space-between; gap: 8px; color: var(--text); font-size: 12px; }
+    #step-count { color: var(--muted); font-family: ui-monospace, monospace; }
+    progress { display: block; width: 100%; height: 4px; margin: 12px 0 15px; border: none; border-radius: 4px; overflow: hidden; background: #e3e7da; accent-color: var(--accent); }
+    progress::-webkit-progress-bar { background: #e3e7da; }
+    progress::-webkit-progress-value { background: var(--accent); }
+    progress::-moz-progress-bar { background: var(--accent); }
+    #algorithm { min-height: 36px; max-height: 76px; overflow-y: auto; overflow-wrap: anywhere; color: var(--text); font: 12px/1.9 ui-monospace, monospace; }
+    .move { display: inline-block; padding: 0 4px; margin: 2px; border-radius: 3px; }
+    .move.done { color: #64745f; }
+    .move.current { color: var(--on-accent); background: var(--accent); }
+    #log { height: 48px; overflow-y: auto; margin-top: 10px; color: var(--muted); font: 11px/1.9 ui-monospace, monospace; }
+    footer { display: flex; align-items: flex-start; justify-content: space-between; gap: 30px; padding-top: 16px; color: var(--muted); font-size: 11px; }
+    details { max-width: 800px; }
+    summary { cursor: pointer; color: var(--muted); }
+    details p { margin: 8px 0; }
+    .footer-note { white-space: nowrap; letter-spacing: 1px; }
+    .header-right { display: flex; align-items: center; gap: 20px; }
+    #open-manual { min-height: 44px; padding: 6px 14px; font-size: 12px; }
+    .stats { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 10px; }
+    .stat { padding: 12px; background: #eef2e7; border: 1px solid var(--line); border-radius: 12px; text-align: center; }
+    .stat span { display: block; color: var(--muted); font-size: 11px; }
+    .stat strong { font: 600 28px/1.5 ui-monospace, monospace; font-variant-numeric: tabular-nums; }
+    #practice-status { color: var(--muted); font-size: 11px; margin: 0 0 17px; min-height: 18px; }
+    .actions { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
+    .actions #solve { grid-column: 1 / -1; }
+    .secondary-actions { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 6px; margin-top: 12px; padding-top: 12px; border-top: 1px solid var(--line); }
+    .secondary-actions button { padding: 8px 2px; font-size: 11px; color: var(--muted); background: transparent; }
+    .actions button { padding: 9px 2px; font-size: 12px; }
+    #reset { min-height: 44px; }
+    #hint { background: var(--hint-bg); border-color: var(--hint-border); color: var(--hint-text); }
+    #hint:hover:not(:disabled) { background: var(--hint-hover); }
+    .hint-card { margin-top: 16px; padding: 14px; border-radius: 12px; background: #fff8eb; border: 1px solid #e4d6b8; }
+    .hint-card h3 { margin: 0 0 7px; color: var(--hint-text); font-size: 12px; font-weight: 500; }
+    #hint-text { margin: 0; color: #6f5b3d; font-size: 12px; }
+    #apply-hint { width: 100%; margin-top: 10px; min-height: 44px; padding: 5px; border-color: var(--hint-border); color: var(--hint-text); background: var(--hint-bg); }
+    #apply-hint:hover:not(:disabled) { background: var(--hint-hover); }
+    #stage-hint { position: absolute; top: 65px; left: 20px; right: 20px; text-align: center; color: var(--hint-text); font-size: 12px; pointer-events: none; }
+    .turn-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; }
+    .turn-cell { display: grid; grid-template-columns: 1fr 1fr; overflow: hidden; border: 1px solid var(--line); border-radius: 8px; }
+    .turn-cell button { border: 0; border-radius: 0; min-height: 44px; padding: 5px; font: 13px ui-monospace, monospace; }
+    .turn-cell button + button { border-left: 1px solid var(--line); color: var(--muted); }
+    .turn-cell.slice button { color: var(--hint-text); background: var(--hint-bg); }
+    .turn-cell.slice button:hover:not(:disabled) { background: var(--hint-hover); }
+    .turn-cell[data-face="U"] { grid-column: 2; }
+    .turn-cell[data-face="L"] { grid-column: 1; }
+    .turn-cell[data-face="D"] { grid-column: 2; }
+    .turn-cell[data-face="M"] { grid-column: 1; }
+    .small-note { color: var(--muted); font-size: 11px; margin: 10px 0 0; }
+    dialog { padding: 0; color: var(--text); background: var(--panel); border: 1px solid var(--line); border-radius: 20px; width: min(1080px, calc(100vw - 40px)); max-height: 90vh; box-shadow: 0 20px 80px #39432e26; }
+    dialog::backdrop { background: #666c574d; backdrop-filter: blur(5px); }
+    .manual-header { display: flex; align-items: center; justify-content: space-between; padding: 18px 24px; border-bottom: 1px solid var(--line); }
+    .manual-header h2 { font-size: 20px; }
+    #close-manual { min-height: 44px; padding: 4px 12px; }
+    .manual-body { display: grid; grid-template-columns: 42% 1fr; }
+    .lesson-preview { padding: 20px; border-right: 1px solid var(--line); }
+    #lesson-viewport { height: 330px; border-radius: 14px; overflow: hidden; background: radial-gradient(ellipse, #fffef8, #e8ebde); touch-action: none; }
+    #lesson-viewport canvas { display: block; width: 100%; height: 100%; }
+    #lesson-title { margin: 14px 0 4px; font-weight: 600; }
+    #lesson-status { min-height: 40px; font-size: 12px; color: var(--muted); }
+    #lesson-reset { width: 100%; min-height: 44px; margin-top: 8px; }
+    .manual-content { padding: 20px 24px; max-height: calc(90vh - 80px); overflow: auto; }
+    .manual-tabs { display: flex; gap: 7px; margin-bottom: 18px; }
+    .manual-tabs button { flex: 1; min-height: 44px; padding: 6px; font-size: 12px; }
+    .manual-tabs button[aria-pressed="true"], .symbol-buttons button[aria-pressed="true"] { border-color: var(--accent); color: var(--accent); background: var(--accent-soft); }
+    .symbol-buttons { display: grid; grid-template-columns: repeat(auto-fit, minmax(44px, 1fr)); gap: 6px; }
+    .symbol-buttons button { padding: 4px; min-height: 44px; font: 14px ui-monospace, monospace; }
+    #symbol-description { min-height: 72px; color: var(--text); font-size: 13px; }
+    .demo-buttons { display: flex; gap: 8px; }
+    .demo-buttons button { flex: 1; font-size: 12px; }
+    .manual-copy { color: var(--muted); font-size: 13px; }
+    .manual-copy p { margin: 12px 0; }
+    .manual-copy h3 { color: var(--text); font-size: 14px; margin: 18px 0 8px; }
+    .recipe { background: #f8f8f0; border: 1px solid var(--line); border-radius: 10px; padding: 13px; margin-bottom: 12px; }
+    .recipe h3 { margin: 0 0 6px; font-size: 14px; }
+    .recipe code { display: block; color: var(--accent); overflow-wrap: anywhere; font-size: 12px; }
+    .recipe p { margin: 8px 0; font-size: 12px; color: var(--muted); }
+    .recipe button { min-height: 44px; padding: 4px 10px; font-size: 12px; }
+    [hidden] { display: none !important; }
+    .order-picker { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; margin-top: 18px; }
+    .order-picker button { width: 100%; min-width: 0; min-height: 48px; padding: 10px 15px; font: 16px ui-monospace, monospace; }
+    .order-picker button[aria-pressed="true"] { background: var(--accent); color: var(--on-accent); border-color: var(--accent); }
+    #order-note { color: var(--muted); font-size: 12px; }
+    #order-detail { margin: 0; color: var(--muted); font-size: 11px; }
+    .turn-group-title { grid-column: 1 / -1; margin: 5px 0 2px; color: var(--muted); font-size: 11px; }
+    .turn-grid[data-order="4"] .turn-cell { grid-column: auto; }
+    #dependency-note a { color: var(--accent); }
+    .touch-controls { display: none; position: absolute; top: 62px; left: 50%; transform: translateX(-50%); gap: 4px; padding: 4px; border: 1px solid var(--line); border-radius: 12px; background: #fffdf7f2; }
+    .touch-controls button { min-width: 100px; min-height: 44px; padding: 8px 12px; border: 0; background: transparent; color: var(--muted); font-size: 12px; }
+    .touch-controls button[aria-pressed="true"] { color: var(--accent); background: var(--accent-soft); }
+    .touch-help { display: none; }
+    @media (max-width: 1359px) and (min-width: 901px) {
+      main { grid-template-columns: minmax(0, 1fr) 320px; grid-template-areas: "stage session" "turns activity"; grid-template-rows: auto auto; }
+      .stage { min-height: 540px; }
+      .turn-grid { grid-template-columns: repeat(6, minmax(0, 1fr)); }
+      .turn-grid .turn-cell { grid-column: auto; }
+      .turn-group-title { margin-top: 8px; }
+    }
+    @media (max-width: 900px) {
+      .page { padding: 16px 20px; }
+      .intro-heading > p { font-size: 12px; }
+      main { grid-template-columns: repeat(2, minmax(0, 1fr)); grid-template-areas: "stage stage" "session turns" "activity activity"; grid-template-rows: auto; min-height: 0; }
+      .stage { height: clamp(440px, 60svh, 620px); min-height: 0; }
+      .panel { padding: 20px; }
+      .palette { gap: 12px; }
+    }
+    @media (max-width: 600px) {
+      .page { padding: max(12px, env(safe-area-inset-top)) max(12px, env(safe-area-inset-right)) max(16px, env(safe-area-inset-bottom)) max(12px, env(safe-area-inset-left)); }
+      header { padding-bottom: 12px; }
+      .brand { font-size: 23px; gap: 8px; }
+      .brand svg { width: 27px; height: 30px; }
+      #open-manual { padding: 8px 12px; }
+      .intro { padding: 16px 0; }
+      .intro-heading { display: block; }
+      .intro-heading > p { margin: 5px 0 0; }
+      .eyebrow { font-size: 9px; letter-spacing: 1.5px; }
+      h1 { font-size: 26px; }
+      .order-picker { gap: 8px; margin-top: 14px; }
+      .order-meta { gap: 3px; }
+      #order-note { width: 100%; }
+      #order-detail { font-size: 10px; }
+      main { grid-template-columns: minmax(0, 1fr); grid-template-areas: "stage" "session" "turns" "activity"; gap: 12px; }
+      .stage { height: clamp(380px, 56svh, 500px); border-radius: 16px; }
+      .stage-top { top: 16px; left: 16px; right: 16px; }
+      .stage-bottom { bottom: 16px; left: 12px; right: 12px; }
+      .stage-bottom p { font-size: 11px; margin-top: 10px; }
+      .palette { gap: 10px; font-size: 10px; }
+      .panel { padding: 18px; border-radius: 16px; }
+      .section-heading { margin-bottom: 14px; }
+      .turn-grid { gap: 8px; }
+      .actions button, .secondary-actions button { font-size: 13px; }
+      .stat { padding: 10px; }
+      footer { flex-direction: column; gap: 10px; }
+      dialog { width: calc(100% - 16px); max-width: none; max-height: calc(100dvh - 16px); border-radius: 16px; overscroll-behavior: contain; }
+      .manual-header { position: sticky; top: 0; z-index: 1; padding: 12px 16px; background: var(--panel); }
+      .manual-header h2 { font-size: 17px; }
+      .manual-body { grid-template-columns: minmax(0, 1fr); }
+      .manual-content { padding: 16px; max-height: none; overflow: visible; }
+      .lesson-preview { padding: 16px; border-right: 0; border-bottom: 1px solid var(--line); }
+      #lesson-viewport { height: clamp(180px, 28svh, 250px); }
+      #lesson-status { min-height: 0; }
+      .manual-tabs { gap: 5px; }
+      .demo-buttons { gap: 5px; }
+      .demo-buttons button { padding: 8px 4px; }
+    }
+    @media (pointer: coarse), (max-width: 900px) {
+      .touch-controls { display: flex; }
+      .desktop-help { display: none; }
+      .touch-help { display: block; }
+      #stage-hint { top: 121px; font-size: 11px; }
+      #viewport { inset: 92px 0 58px; }
+    }
+    @media (max-width: 359px) {
+      .panel { padding: 12px; }
+      .turn-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 6px; }
+      .turn-grid .turn-cell { grid-column: auto; }
+      .palette { gap: 7px; }
+    }
+  </style>
+</head>
+<body>
+  <div class="page">
+    <header>
+      <div class="brand"><svg viewBox="0 0 32 36" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true"><path d="M16 2 30 10v16L16 34 2 26V10Z M2 10l14 8 14-8M16 18v16M9 6l14 8v16M23 6 9 14v16M2 18l14 8 14-8"/></svg><div>Cube<span>Vibe</span></div></div>
+      <div class="header-right"><button id="open-manual" disabled>公式手册 ↗</button></div>
+    </header>
+    <div class="intro">
+      <div class="intro-heading"><div><p class="eyebrow">A LITTLE FOCUS. A LITTLE FLOW.</p><h1>转动，让思绪归位。</h1></div><p>打乱秩序，探索每一步，再找到答案。</p></div>
+      <div class="order-picker" role="group" aria-label="选择魔方阶数"><button data-order="2" aria-pressed="false">2 × 2</button><button data-order="3" aria-pressed="true">3 × 3</button><button data-order="4" aria-pressed="false">4 × 4</button></div>
+      <div class="order-meta"><span id="order-note">三阶 · 经典六色挑战</span><p id="order-detail">切换阶数会开始新一轮，清空当前魔方、撤销记录和统计。</p></div>
+    </div>
+    <main>
+      <section class="stage" aria-label="魔方交互画布">
+        <div id="viewport"></div>
+        <div class="stage-top"><span id="cube-status" class="badge">已复原</span><span id="stage-order" class="stage-label">3 × 3 × 3</span></div>
+        <div class="touch-controls" role="group" aria-label="画布手势模式"><button data-interaction="turn" aria-pressed="true">拧动魔方</button><button data-interaction="orbit" aria-pressed="false">旋转视角</button></div>
+        <div id="stage-hint" hidden></div>
+        <div id="boot-message" role="status">正在加载 3D 魔方…</div>
+        <div class="stage-bottom">
+          <div class="palette"><span><i class="swatch" data-center="U" style="--color:#ffdb3b"></i>U 上</span><span><i class="swatch" data-center="D" style="--color:#f4f5f7"></i>D 下</span><span><i class="swatch" data-center="F" style="--color:#ef454f"></i>F 前</span><span><i class="swatch" data-center="B" style="--color:#ff922f"></i>B 后</span><span><i class="swatch" data-center="R" style="--color:#4086f5"></i>R 右</span><span><i class="swatch" data-center="L" style="--color:#35c780"></i>L 左</span></div>
+          <p class="desktop-help">拖动色块拧面 · 拖动空白或右键旋转视角 · 滚轮缩放</p><p id="touch-help" class="touch-help">单指拖动色块拧面 · 切换「旋转视角」观察与缩放</p>
+        </div>
+      </section>
+      <section class="panel session-panel" aria-labelledby="session-title">
+        <div class="section-heading"><h2 id="session-title">本轮练习</h2><span class="section-number">01 / PLAY</span></div>
+        <div class="stats" aria-label="手动复原统计" title="每个已完成的手动转动计一步，含半转、中层和撤销；打乱与自动复原不计入。">
+          <div class="stat"><span>实际步数</span><strong id="move-count">0</strong></div>
+          <div class="stat"><span>用时</span><strong id="elapsed">0.0″</strong></div>
+        </div>
+        <p id="practice-status" role="status">打乱后，首次手动转动开始计时</p>
+        <div class="actions">
+          <button id="scramble" disabled>⤨ 打乱</button><button id="hint" disabled>☀ 求助提示</button><button id="solve" class="primary" disabled>✧ 自动复原</button>
+        </div>
+        <div class="secondary-actions">
+          <button id="undo" title="撤销上一步已完成的手动转动" disabled>↶ 撤销</button><button id="reset" disabled>↺ 重置</button><button id="restore-view" disabled>⌖ 复位视角</button>
+        </div>
+        <p id="solver-status" class="solver-state" role="status">求解器准备中…</p>
+        <div class="hint-card">
+          <h3>下一步引导</h3><p id="hint-text" role="status">点击「求助提示」，在 3D 魔方上查看目标层和转动箭头。</p>
+          <button id="apply-hint" hidden disabled>按提示转动</button>
+        </div>
+      </section>
+      <section class="panel turn-panel" aria-labelledby="turn-title">
+        <div class="section-heading"><h2 id="turn-title">手动转层</h2><span class="section-number">02 / TURN</span></div>
+        <p class="panel-description">选择一层，掌握每一次转动。</p>
+        <div id="turn-buttons" class="turn-grid" aria-label="转层按钮"></div>
+        <p id="turn-note" class="small-note">左侧正向 · 右侧 ' 反向；键盘 U F D B L R M E S，Shift 反向。方向以公式手册为准。</p>
+      </section>
+      <section class="panel activity-panel" aria-labelledby="activity-title">
+        <div class="section-heading"><h2 id="activity-title">转动记录</h2><span class="section-number">03 / FLOW</span></div>
+        <div class="progress-heading"><span id="task-status" role="status">等待开始</span><span id="step-count">0 / 0</span></div>
+        <progress id="progress" max="1" value="0" aria-label="当前公式执行进度"></progress>
+        <div id="algorithm" aria-label="当前任务公式">你的下一步，从这里开始。</div>
+        <div id="log" aria-label="步骤日志">准备就绪后，可以拖动魔方或点击转层按钮。</div>
+        <p id="feedback" role="status" aria-live="polite">每一步，都有新的可能。</p>
+      </section>
+    </main>
+    <footer>
+      <details><summary>操作指南与魔方符号</summary><p>U/D 上下、F/B 前后、L/R 左右。左侧按钮正向，右侧带 ' 反向；字母后加 2 表示半转。二阶只有外层，三阶另有 M/E/S，四阶使用 2R 等单内层及 Rw 等双层宽转，具体方向请查看当前阶数的公式手册。</p><p>电脑：左键拖色块转动所在层，拖空白或右键拖动观察，滚轮缩放。手机：在「拧动魔方」模式单指拖动色块；切换「旋转视角」后单指旋转视角、双指捏合缩放。画布外可正常上下滑动页面。四阶宽转使用按钮。键盘六个面字母转外层，Shift 反向；三阶可用 M/E/S，四阶按住 Alt 转内层、Alt+Ctrl 转宽层。</p><p>打乱后第一步手动操作开始计时。每次四分之一转、半转、内层或宽转各算一步，撤销也计一步；自动复原不计作个人完成。切换阶数或重置会清空本轮。手册演示完全独立。</p><p>联网直接打开即可使用。每种阶数只在本次打开页面后首次使用时准备求解器，切换回来可直接复用；四阶首次准备较久。刷新或关闭页面后缓存会释放。所有状态与计算都留在浏览器内。偶数阶没有固定中心，画布配色图例表示初始朝向。</p><p id="dependency-note">渲染：Three.js（MIT）；二/三阶求解：cubejs（MIT）；四阶求解：<a href="https://cdn.jsdelivr.net/gh/cs0x7f/cstimer@2025.08.18/src/js/scramble/scramble_444.js" target="_blank" rel="noopener">csTimer / cs0x7f ThreePhase 2025.08.18 源码</a>（<a href="https://cdn.jsdelivr.net/gh/cs0x7f/cstimer@2025.08.18/LICENSE" target="_blank" rel="noopener">GPL-3.0</a>）。本页 Worker 内包含求解出口与方向适配，外部算法版权归原作者。</p></details>
+      <span class="footer-note">SIX COLORS. ENDLESS POSSIBILITIES.</span>
+    </footer>
+  </div>
+  <dialog id="manual-dialog" aria-labelledby="manual-title">
+    <div class="manual-header"><h2 id="manual-title">魔方公式手册</h2><button id="close-manual" aria-label="关闭公式手册">关闭 ×</button></div>
+    <div class="manual-body">
+      <section class="lesson-preview" aria-label="独立练习魔方">
+        <div id="lesson-viewport"></div>
+        <p id="lesson-title">U · 上层</p><p id="lesson-status" role="status">选择一个符号，查看箭头并播放转动。</p>
+        <button id="lesson-reset">重置练习魔方</button>
+        <p class="small-note">独立练习，不改变主魔方、撤销记录或步数。主魔方计时中查阅手册不会暂停计时。电脑右键拖动、手机单指拖动可换角度，双指可缩放。</p>
+      </section>
+      <section class="manual-content">
+        <nav class="manual-tabs" aria-label="手册章节"><button data-tab="symbols" aria-pressed="true">转动符号</button><button data-tab="recipes" aria-pressed="false">常用公式</button><button data-tab="tips" aria-pressed="false">复原技巧</button></nav>
+        <div id="manual-symbols">
+          <div id="symbol-buttons" class="symbol-buttons"></div><p id="symbol-description"></p>
+          <div class="demo-buttons"><button id="demo-normal">演示 U</button><button id="demo-inverse">演示 U'</button><button id="demo-double">演示 U2</button></div>
+          <div class="manual-copy"><h3>读懂一条公式</h3><p>从左往右执行。正对参考面看，单字母顺时针 90°，英文单引号 ' 逆时针，后缀 2 转 180°。背、下、左面要从各自外侧判断方向。视角改变不重新定义空间层。</p><h3>当前阶数的转动规则</h3><p id="order-symbol-help"></p></div>
+        </div>
+        <div id="manual-recipes" hidden><p class="manual-copy">先观察适用条件再使用公式。演示会在独立魔方上用该公式的逆公式准备一个匹配案例，然后逐步还原；公式并不能复原任意打乱状态。</p><div id="recipe-list"></div></div>
+        <div id="manual-tips" class="manual-copy" hidden></div>
+      </section>
+    </div>
+  </dialog>
+  <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/build/three.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
+  <!-- cubejs (MIT): https://github.com/ldez/cubejs -->
+  <script src="https://cdn.jsdelivr.net/npm/cubejs@1.3.2/lib/cube.js"></script>
+  <script>
+    'use strict';
+
+    // 一、公式与真实状态。面序和面内方向严格遵循 cubejs 的 URFDLB 定义。
+    let currentOrder = 3;
+    const COLORS = { U: 0xffdb3b, R: 0x4086f5, F: 0xef454f, D: 0xf4f5f7, L: 0x35c780, B: 0xff922f };
+    const FACES = {
+      U: { axis: 'y', layer: 1, normal: [0, 1, 0], right: [1, 0, 0], down: [0, 0, 1] },
+      R: { axis: 'x', layer: 1, normal: [1, 0, 0], right: [0, 0, -1], down: [0, -1, 0] },
+      F: { axis: 'z', layer: 1, normal: [0, 0, 1], right: [1, 0, 0], down: [0, -1, 0] },
+      D: { axis: 'y', layer: -1, normal: [0, -1, 0], right: [1, 0, 0], down: [0, 0, -1] },
+      L: { axis: 'x', layer: -1, normal: [-1, 0, 0], right: [0, 0, 1], down: [0, -1, 0] },
+      B: { axis: 'z', layer: -1, normal: [0, 0, -1], right: [-1, 0, 0], down: [0, -1, 0] }
+    };
+    const MOVE_NAMES = { U: '上层', F: '前层', D: '下层', B: '后层', L: '左层', R: '右层', M: '左右之间的中层', E: '上下之间的中层', S: '前后之间的中层', x: '整个魔方，跟 R 同向', y: '整个魔方，跟 U 同向', z: '整个魔方，跟 F 同向' };
+    const REFERENCES = { U: '上', F: '前', D: '下', B: '后', L: '左', R: '右', M: '左', E: '下', S: '前', x: '右', y: '上', z: '前' };
+
+    /** 各阶只暴露真实存在且定义清晰的层；四阶不使用含糊的 M/E/S。 */
+    function turnSymbols(order) {
+      const outer = ['U', 'L', 'F', 'R', 'D', 'B'];
+      return order === 3 ? outer.concat(['M', 'E', 'S']) : order === 4 ? outer.concat(outer.map(face => '2' + face), outer.map(face => face + 'w')) : outer;
+    }
+    /** 区分 2R（右侧第二层）与 R2（右层半转），支持内部整块转体。 */
+    function splitMove(move) {
+      const match = /^(2[URFDLB]|[URFDLB]w|[URFDLBMESxyz])(['2]?)$/.exec(move);
+      if (!match) throw new Error(`不支持的转动：${move}`);
+      return { symbol: match[1], suffix: match[2] };
+    }
+    /** 完整校验内部求解公式或手册公式，不提供用户输入入口。 */
+    function parseFormula(text, order = currentOrder) {
+      if (!text.trim()) throw new Error('公式为空，无法执行。');
+      const moves = text.trim().split(/\s+/), allowed = turnSymbols(order).concat(['x', 'y', 'z']);
+      for (const move of moves) if (!allowed.includes(splitMove(move).symbol)) throw new Error(`${order} 阶不支持 ${move}`);
+      return moves;
+    }
+    /** 反转公式，兼容内层前缀和宽转后缀。 */
+    function inverseFormula(formula) {
+      return formula.trim().split(/\s+/).reverse().map(move => {
+        const { symbol, suffix } = splitMove(move);
+        return symbol + (suffix === '2' ? '2' : suffix === "'" ? '' : "'");
+      }).join(' ');
+    }
+    /** 面、内层、宽转和整块转体共用同一坐标定义。 */
+    function moveSpec(move, order = currentOrder) {
+      const { symbol, suffix } = splitMove(move), extent = order - 1;
+      let axis, layers, sign;
+      if ('xyz'.includes(symbol)) { axis = symbol; layers = Array.from({ length: order }, (_, i) => 2 * i - extent); sign = -1; }
+      else if ('MES'.includes(symbol)) {
+        if (order !== 3) throw new Error('M/E/S 仅用于三阶');
+        axis = { M: 'x', E: 'y', S: 'z' }[symbol]; layers = [0]; sign = symbol === 'S' ? -1 : 1;
+      } else {
+        const face = FACES[symbol.replace('2', '').replace('w', '')];
+        axis = face.axis; sign = -face.layer;
+        if ((symbol.startsWith('2') || symbol.endsWith('w')) && order !== 4) throw new Error('内层/宽转仅用于四阶');
+        layers = symbol.startsWith('2') ? [face.layer * (extent - 2)] : symbol.endsWith('w') ? [face.layer * extent, face.layer * (extent - 2)] : [face.layer * extent];
+      }
+      return { axis, layers, angle: sign * (suffix === '2' ? 2 : suffix === "'" ? -1 : 1) * Math.PI / 2 };
+    }
+    /** 说明真实参考方向，不用屏幕方向代替顺逆时针。 */
+    function describeMove(move) {
+      const { symbol, suffix } = splitMove(move), base = symbol.replace('2', '').replace('w', '');
+      const name = symbol.startsWith('2') ? `从${REFERENCES[base]}面数第二层（仅内层）` : symbol.endsWith('w') ? `${MOVE_NAMES[base]}与相邻内层一起` : MOVE_NAMES[symbol];
+      return `${move} · ${name}，从${REFERENCES[base]}侧看${suffix === '2' ? '转动 180°' : suffix === "'" ? '逆时针 90°' : '顺时针 90°'}`;
+    }
+    /** 按阶数生成合法动作打乱；四阶同时包含外层和宽转。 */
+    function makeScramble(order = currentOrder) {
+      const faces = Object.keys(FACES), symbols = order === 4 ? faces.concat(faces.map(f => f + 'w')) : faces;
+      const lengths = { 2: 15, 3: 25, 4: 40 }, suffixes = ['', "'", '2'], moves = [];
+      let previous = '';
+      for (let i = 0; i < lengths[order]; i++) {
+        const choices = symbols.filter(symbol => symbol[0] !== previous);
+        const symbol = choices[Math.floor(Math.random() * choices.length)]; previous = symbol[0];
+        moves.push(symbol + suffixes[Math.floor(Math.random() * 3)]);
+      }
+      return moves;
+    }
+    /** 使用整数格点旋转，模型永不依赖 Three.js 的浮点姿态。 */
+    function rotateVector(vector, axis, direction) {
+      const [x, y, z] = vector;
+      return axis === 'x' ? [x, -direction * z, direction * y] : axis === 'y' ? [direction * z, y, -direction * x] : [-direction * y, direction * x, z];
+    }
+    /** 为任意阶数生成 URFDLB 顺序的面片槽位。 */
+    function makeSlots(order) {
+      const slots = [], extent = order - 1;
+      for (const [face, data] of Object.entries(FACES)) for (let row = 0; row < order; row++) for (let col = 0; col < order; col++) {
+        const position = data.normal.map((value, axis) => value * extent + data.right[axis] * (2 * col - extent) + data.down[axis] * (2 * row - extent));
+        slots.push({ face, position, normal: data.normal.slice() });
+      }
+      return slots;
+    }
+    /** 唯一的槽位标识同时包含位置和面法线。 */
+    function slotKey(position, normal) { return position.join(',') + '|' + normal.join(','); }
+
+    class CubeState {
+      /** 保存真实面片模型；24/54/96 面片分别对应二/三/四阶。 */
+      constructor(order = currentOrder) {
+        this.order = order; this.slots = makeSlots(order); this.permutations = new Map();
+        this.slotIndices = new Map(this.slots.map((slot, index) => [slotKey(slot.position, slot.normal), index]));
+        this.reset();
+      }
+      /** 构建并缓存精确面片置换，宽转同时移动两层。 */
+      permutation(move) {
+        if (this.permutations.has(move)) return this.permutations.get(move);
+        const spec = moveSpec(move, this.order), coordinate = 'xyz'.indexOf(spec.axis), direction = Math.sign(spec.angle), turns = Math.round(Math.abs(spec.angle) / (Math.PI / 2));
+        const permutation = this.slots.map((slot, index) => {
+          if (!spec.layers.includes(slot.position[coordinate])) return index;
+          let position = slot.position, normal = slot.normal;
+          for (let i = 0; i < turns; i++) { position = rotateVector(position, spec.axis, direction); normal = rotateVector(normal, spec.axis, direction); }
+          const destination = this.slotIndices.get(slotKey(position, normal));
+          if (destination === undefined) throw new Error('面片坐标不合法');
+          return destination;
+        });
+        this.permutations.set(move, permutation); return permutation;
+      }
+      /** 仅在动画完成时提交一步逻辑转动。 */
+      apply(move) { const next = this.colors.slice(); this.permutation(move).forEach((destination, source) => { next[destination] = this.colors[source]; }); this.colors = next; }
+      /** 求解器只接收当前状态，不接收历史。 */
+      facelets() { return this.colors.join(''); }
+      /** 各面颜色统一即复原，允许整个魔方处于不同空间朝向。 */
+      isSolved() { const count = this.order * this.order; return this.colors.every((color, index) => color === this.colors[Math.floor(index / count) * count]); }
+      /** 恢复标准配色。 */
+      reset() { this.colors = this.slots.map(slot => slot.face); }
+      /** 在副本上验证整个解法，失败时不允许执行。 */
+      verifies(moves) { const copy = new CubeState(this.order); copy.colors = this.colors.slice(); for (const move of moves) copy.apply(move); return copy.isSolved(); }
+      /** 手册准备匹配案例使用同一模型。 */
+      applyFormula(formula) { for (const move of parseFormula(formula, this.order)) this.apply(move); }
+    }
+
+    // 二、3D 渲染。每步末尾回到精确网格并重绘贴面，消除长期旋转误差。
+    class CubeView {
+      /** 初始化场景、相机、灯光、块体与共享材质。 */
+      constructor(container, model) {
+        this.container = container;
+        this.model = model;
+        this.scene = new THREE.Scene();
+        this.camera = new THREE.PerspectiveCamera(34, 1, .1, 100);
+        this.camera.position.set(6.5, 5.2, 7.5);
+        this.renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
+        this.renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
+        this.renderer.outputEncoding = THREE.sRGBEncoding;
+        this.renderer.shadowMap.enabled = true;
+        this.renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+        container.appendChild(this.renderer.domElement);
+        this.renderer.domElement.setAttribute('aria-label', '3D 三阶魔方：拖动色块拧面，右键拖动旋转视角');
+        this.renderer.domElement.setAttribute('tabindex', '0');
+        this.controls = new THREE.OrbitControls(this.camera, this.renderer.domElement);
+        this.controls.enablePan = false;
+        this.controls.enableDamping = false;
+        this.controls.minDistance = 6.5;
+        this.controls.maxDistance = 17;
+        this.controls.mouseButtons.RIGHT = THREE.MOUSE.ROTATE;
+        this.controls.saveState();
+        this.scene.add(new THREE.AmbientLight(0xffffff, .85));
+        const key = new THREE.DirectionalLight(0xffffff, .85);
+        key.position.set(3, 8, 5);
+        key.castShadow = true;
+        key.shadow.mapSize.set(2048, 2048);
+        Object.assign(key.shadow.camera, { left: -5, right: 5, top: 5, bottom: -5, near: .5, far: 25 });
+        key.shadow.bias = -.001;
+        this.scene.add(key);
+        const fill = new THREE.DirectionalLight(0xb2c9ff, .35);
+        fill.position.set(-5, 2, -4);
+        this.scene.add(fill);
+        const floor = new THREE.Mesh(new THREE.PlaneGeometry(200, 200), new THREE.ShadowMaterial({ color: 0x6a644f, opacity: .14 }));
+        floor.rotation.x = -Math.PI / 2;
+        floor.position.y = -2.15;
+        floor.receiveShadow = true;
+        this.scene.add(floor);
+        this.root = new THREE.Group();
+        this.pivot = new THREE.Group();
+        this.guide = new THREE.Group();
+        this.scene.add(this.root, this.pivot, this.guide);
+        this.cubies = []; this.stickers = [];
+        this.rebuild();
+        this.raycaster = new THREE.Raycaster();
+        this.resizeObserver = new ResizeObserver(() => this.resize());
+        this.resizeObserver.observe(container);
+        this.sync();
+        this.resize();
+      }
+      /** 阶数改变时重建块体并释放旧几何，复用相机、画布和控制器。 */
+      rebuild() {
+        this.clearGuide();
+        const geometries = new Set(), materials = new Set();
+        for (const cubie of this.cubies) cubie.traverse(object => { if (object.geometry) geometries.add(object.geometry); if (object.material) materials.add(object.material); });
+        for (const geometry of geometries) geometry.dispose();
+        for (const material of materials) material.dispose();
+        this.root.clear(); this.pivot.clear(); this.pivot.rotation.set(0, 0, 0);
+        this.cubies = []; this.stickers = [];
+        const order = this.model.order, extent = order - 1;
+        this.cell = 3 / order;
+        const bodyGeometry = new THREE.BoxGeometry(.95 * this.cell, .95 * this.cell, .95 * this.cell);
+        const bodyMaterial = new THREE.MeshStandardMaterial({ color: new THREE.Color(0x101318).convertSRGBToLinear(), roughness: .65 });
+        const byCoordinate = new Map();
+        for (let x = -extent; x <= extent; x += 2) for (let y = -extent; y <= extent; y += 2) for (let z = -extent; z <= extent; z += 2) {
+          if (Math.max(Math.abs(x), Math.abs(y), Math.abs(z)) !== extent) continue;
+          const group = new THREE.Group(), coordinate = new THREE.Vector3(x, y, z);
+          group.position.copy(coordinate).multiplyScalar(this.cell / 2);
+          group.userData = { home: group.position.clone(), coordinate };
+          const body = new THREE.Mesh(bodyGeometry, bodyMaterial); body.castShadow = true; group.add(body);
+          this.root.add(group); this.cubies.push(group); byCoordinate.set([x, y, z].join(','), group);
+        }
+        const geometry = this.stickerGeometry(); geometry.scale(this.cell, this.cell, this.cell);
+        this.materials = {};
+        for (const [face, color] of Object.entries(COLORS)) this.materials[face] = new THREE.MeshStandardMaterial({ color: new THREE.Color(color).convertSRGBToLinear(), roughness: .65, metalness: 0 });
+        this.model.slots.forEach((slot, index) => {
+          const cubie = byCoordinate.get(slot.position.join(',')), normal = new THREE.Vector3(...slot.normal);
+          const sticker = new THREE.Mesh(geometry, this.materials[slot.face]);
+          sticker.position.copy(normal).multiplyScalar(.479 * this.cell);
+          sticker.quaternion.setFromUnitVectors(new THREE.Vector3(0, 0, 1), normal);
+          sticker.userData = { index, normal, cubie }; cubie.add(sticker); this.stickers.push(sticker);
+        });
+        this.renderer.domElement.setAttribute('aria-label', `${order} 阶魔方：拖动色块转层，右键拖动旋转视角`);
+        this.sync();
+      }
+      /** 创建轻微圆角的方形贴面，六面共用一份几何数据。 */
+      stickerGeometry() {
+        const shape = new THREE.Shape(), h = .415, r = .065;
+        shape.moveTo(-h + r, -h);
+        shape.lineTo(h - r, -h); shape.quadraticCurveTo(h, -h, h, -h + r);
+        shape.lineTo(h, h - r); shape.quadraticCurveTo(h, h, h - r, h);
+        shape.lineTo(-h + r, h); shape.quadraticCurveTo(-h, h, -h, h - r);
+        shape.lineTo(-h, -h + r); shape.quadraticCurveTo(-h, -h, -h + r, -h);
+        return new THREE.ShapeGeometry(shape, 5);
+      }
+      /** 根据容器尺寸更新画布，保持像素比例与透视正确。 */
+      resize() {
+        const width = this.container.clientWidth, height = this.container.clientHeight;
+        if (!width || !height) return;
+        this.camera.aspect = width / height;
+        // 窄画布保持水平视野，避免两栏布局临界宽度裁切魔方。
+        this.camera.fov = THREE.MathUtils.radToDeg(2 * Math.atan(Math.tan(THREE.MathUtils.degToRad(34) / 2) / Math.min(1, this.camera.aspect)));
+        this.camera.updateProjectionMatrix();
+        this.renderer.setSize(width, height, false);
+      }
+      /** 将视觉层彻底同步到权威模型，包括被中断的动画。 */
+      sync() {
+        for (const cubie of this.cubies) {
+          this.root.add(cubie);
+          cubie.position.copy(cubie.userData.home);
+          cubie.quaternion.identity();
+        }
+        this.pivot.rotation.set(0, 0, 0);
+        const facelets = this.model.facelets();
+        for (const sticker of this.stickers) sticker.material = this.materials[facelets[sticker.userData.index]];
+        this.scene.updateMatrixWorld(true);
+      }
+      /** 把目标层的可见块体挂到临时旋转组，同时支持两层宽转。 */
+      begin(move) {
+        const spec = moveSpec(move, this.model.order);
+        for (const cubie of this.cubies) if (spec.layers.includes(cubie.userData.coordinate[spec.axis])) this.pivot.add(cubie);
+        return spec;
+      }
+      /** 按缓动进度设置临时旋转组的角度。 */
+      turn(spec, progress) { this.pivot.rotation[spec.axis] = spec.angle * progress; }
+      /** 从屏幕坐标发射射线，拾取正面可见的贴面。 */
+      pick(clientX, clientY) {
+        const rect = this.renderer.domElement.getBoundingClientRect();
+        const pointer = new THREE.Vector2((clientX - rect.left) / rect.width * 2 - 1, -(clientY - rect.top) / rect.height * 2 + 1);
+        this.scene.updateMatrixWorld(true);
+        this.raycaster.setFromCamera(pointer, this.camera);
+        const hit = this.raycaster.intersectObjects(this.cubies, true)[0];
+        return hit && hit.object.userData.cubie ? hit : null;
+      }
+      /** 将世界方向在命中点附近投影为屏幕方向。 */
+      screenDirection(point, direction) {
+        const a = point.clone().project(this.camera), b = point.clone().addScaledVector(direction, .3).project(this.camera);
+        return new THREE.Vector2((b.x - a.x) * this.container.clientWidth, -(b.y - a.y) * this.container.clientHeight).normalize();
+      }
+      /** 根据命中格点将拖动映射到当前阶数的外层或单内层。 */
+      dragMove(hit, dx, dy) {
+        const normal = hit.object.userData.normal;
+        const drag = new THREE.Vector2(dx, dy).normalize();
+        const tangents = [new THREE.Vector3(1, 0, 0), new THREE.Vector3(0, 1, 0), new THREE.Vector3(0, 0, 1)].filter(axis => Math.abs(axis.dot(normal)) < .5);
+        let best = null;
+        for (const tangent of tangents) {
+          const projection = this.screenDirection(hit.point, tangent);
+          const score = drag.dot(projection);
+          if (!best || Math.abs(score) > best.score) best = { tangent: tangent.clone().multiplyScalar(Math.sign(score)), score: Math.abs(score) };
+        }
+        const rotationAxis = normal.clone().cross(best.tangent);
+        const axis = ['x', 'y', 'z'].find(key => Math.abs(rotationAxis[key]) > .5);
+        const layer = hit.object.userData.cubie.userData.coordinate[axis];
+        const symbol = turnSymbols(this.model.order).find(name => { const spec = moveSpec(name, this.model.order); return spec.axis === axis && spec.layers.length === 1 && spec.layers[0] === layer; });
+        if (!symbol) return null;
+        return symbol + (Math.sign(rotationAxis[axis]) === Math.sign(moveSpec(symbol, this.model.order).angle) ? '' : "'");
+      }
+      /** 清除并释放提示几何和材质，反复请求提示不会积累 GPU 资源。 */
+      clearGuide() {
+        this.guide.traverse(object => { if (object.geometry) object.geometry.dispose(); if (object.material) object.material.dispose(); });
+        this.guide.clear();
+      }
+      /** 在真实旋转平面画弧形箭头，并描出目标层；箭头随视角呈现透视。 */
+      showGuide(move) {
+        this.clearGuide();
+        const spec = moveSpec(move, this.model.order), axis = new THREE.Vector3();
+        axis[spec.axis] = 1;
+        const center = axis.clone().multiplyScalar(spec.layers.reduce((sum, value) => sum + value, 0) / spec.layers.length * this.cell / 2);
+        const radial = this.camera.position.clone().addScaledVector(axis, -this.camera.position.dot(axis));
+        if (radial.lengthSq() < .01) radial.copy(new THREE.Vector3(...FACES[{ x: 'R', y: 'U', z: 'F' }[spec.axis]].right));
+        radial.normalize();
+        const tangent = axis.clone().cross(radial), sign = Math.sign(spec.angle);
+        const span = move.endsWith('2') ? 2.7 : 1.45, points = [];
+        for (let i = 0; i <= 40; i++) {
+          const angle = sign * (-span / 2 + span * i / 40);
+          points.push(center.clone().addScaledVector(radial, Math.cos(angle) * 2.12).addScaledVector(tangent, Math.sin(angle) * 2.12));
+        }
+        const material = new THREE.MeshBasicMaterial({ color: new THREE.Color(0xa16614).convertSRGBToLinear(), depthTest: false, depthWrite: false, transparent: true, opacity: .97 });
+        const arc = new THREE.Mesh(new THREE.TubeGeometry(new THREE.CatmullRomCurve3(points), 48, .036, 8, false), material);
+        arc.renderOrder = 20;
+        this.guide.add(arc);
+        const head = new THREE.Mesh(new THREE.ConeGeometry(.13, .32, 16), material.clone());
+        head.position.copy(points[40]);
+        const angle = sign * span / 2;
+        const direction = radial.clone().multiplyScalar(-Math.sin(angle) * sign).addScaledVector(tangent, Math.cos(angle) * sign);
+        head.quaternion.setFromUnitVectors(new THREE.Vector3(0, 1, 0), direction);
+        head.renderOrder = 21;
+        this.guide.add(head);
+        for (const cubie of this.cubies) {
+          if (!spec.layers.includes(cubie.userData.coordinate[spec.axis])) continue;
+          const box = new THREE.BoxGeometry(.975 * this.cell, .975 * this.cell, .975 * this.cell);
+          const edges = new THREE.EdgesGeometry(box);
+          box.dispose();
+          const outline = new THREE.LineSegments(edges, new THREE.LineBasicMaterial({ color: new THREE.Color(0xa16614).convertSRGBToLinear(), depthTest: false, depthWrite: false, transparent: true, opacity: .8 }));
+          outline.position.copy(cubie.userData.home);
+          outline.renderOrder = 10;
+          this.guide.add(outline);
+        }
+      }
+      /** 绘制当前帧；相机控制不改变魔方逻辑坐标。 */
+      render() { this.controls.update(); this.renderer.render(this.scene, this.camera); }
+    }
+
+    // 三、按阶数启动后台求解；所有求解都只使用当前面片状态。
+    /** Worker 主体独立于页面作用域，可序列化为单文件 Blob Worker。 */
+    async function solverWorkerMain(order) {
+      let solveFour;
+      try {
+        importScripts('https://cdn.jsdelivr.net/npm/cubejs@1.3.2/lib/cube.js', 'https://cdn.jsdelivr.net/npm/cubejs@1.3.2/lib/solve.js');
+        Cube.initSolver();
+        if (order === 4) {
+          // csTimer 2025.08.18 / cs0x7f ThreePhase, GPL-3.0。
+          // 原版返回打乱公式；以下显式适配导出当前状态的正向解法。
+          // 上游源码和许可证始终可在固定版本的 CDN 地址查看。
+          const url = 'https://cdn.jsdelivr.net/gh/cs0x7f/cstimer@2025.08.18/src/js/scramble/scramble_444.js';
+          const response = await fetch(url);
+          if (!response.ok) throw new Error('四阶求解模块加载失败');
+          let source = await response.text();
+          const exportMarker = 'testbench: testbench';
+          const directionMarker = 'finishSym = SymMult[SymInv[sym]][getSolvedSym(getCenter(obj))];';
+          if (source.split(exportMarker).length !== 2 || source.split(directionMarker).length !== 2) throw new Error('四阶模块版本不匹配');
+          source = source.replace(exportMarker, 'testbench: testbench, init: init, solveFacelet: genFacelet');
+          source = source.replace(directionMarker, "return fixedMoves.map(function(move) { return move2str_1[move]; }).join(' ');");
+          // 只提供求解路径实际使用的数学辅助函数，不引入计时器 UI 或随机打乱模块。
+          const mathlib = {
+            Cnk: [],
+            /** 循环交换排列中的指定位置。 */
+            circle(array, ...indices) {
+              const last = array[indices[indices.length - 1]];
+              for (let i = indices.length - 1; i > 0; i--) array[indices[i]] = array[indices[i - 1]];
+              array[indices[0]] = last; return mathlib.circle;
+            },
+            /** 将阶乘数制索引解码为 n 元排列。 */
+            setNPerm(array, index, count) {
+              const available = Array.from({ length: count }, (_, i) => i);
+              for (let i = 0; i < count; i++) {
+                let factorial = 1; for (let j = 2; j < count - i; j++) factorial *= j;
+                array[i] = available.splice(Math.floor(index / factorial), 1)[0]; index %= factorial;
+              }
+            },
+            /** 计算位集合元素数量。 */
+            bitCount(value) { let count = 0; while (value) { value &= value - 1; count++; } return count; }
+          };
+          for (let n = 0; n < 32; n++) {
+            mathlib.Cnk[n] = Array(32).fill(0);
+            for (let k = 0; k <= n; k++) mathlib.Cnk[n][k] = k === 0 || k === n ? 1 : mathlib.Cnk[n - 1][k - 1] + mathlib.Cnk[n - 1][k];
+          }
+          /** 无 UI 的注册适配器，求解不调用上游打乱菜单。 */
+          function register() { return register; }
+          const factory = new Function('mathlib', 'scramble_333', 'scrMgr', '$', 'DEBUG', source + '\nreturn scramble_444;');
+          const engine = factory(mathlib, { solvFacelet: facelets => Cube.fromString(facelets).solve() }, { reg: register }, { now: Date.now, isArray: Array.isArray }, false);
+          engine.init(); solveFour = facelets => engine.solveFacelet(facelets).trim();
+        }
+        self.postMessage({ type: 'ready' });
+      } catch (error) { self.postMessage({ type: 'failure', message: error.message }); return; }
+
+      /** 将二阶角块投影为合法三阶角状态，补齐辅助棱块后求解角块。 */
+      function solveTwo(facelets) {
+        const expanded = 'URFDLB'.split('').flatMap(face => Array(9).fill(face));
+        const cornerIndices = [0, 2, 6, 8];
+        for (let face = 0; face < 6; face++) for (let i = 0; i < 4; i++) expanded[face * 9 + cornerIndices[i]] = facelets[face * 4 + i];
+        const cube = Cube.fromString(expanded.join(''));
+        let parity = 0;
+        for (let i = 0; i < 8; i++) for (let j = i + 1; j < 8; j++) if (cube.cp[i] > cube.cp[j]) parity ^= 1;
+        // 二阶没有棱块奇偶限制；让辅助棱块匹配角块奇偶性。
+        if (parity) [cube.ep[0], cube.ep[1]] = [cube.ep[1], cube.ep[0]];
+        return cube.solve();
+      }
+      /** 求解只接收当前状态和请求编号，绝不依赖操作历史。 */
+      self.onmessage = event => {
+        const { id, facelets } = event.data;
+        try {
+          if (facelets.length !== order * order * 6 || [...'URFDLB'].some(face => [...facelets].filter(value => value === face).length !== order * order)) throw new Error('魔方面片数据不合法');
+          const formula = order === 4 ? solveFour(facelets) : order === 2 ? solveTwo(facelets) : Cube.fromString(facelets).solve();
+          self.postMessage({ type: 'solution', id, formula });
+        } catch (error) { self.postMessage({ type: 'solve-error', id, message: error.message }); }
+      };
+    }
+
+    class CubeSolver {
+      /** 每阶首次使用时创建 Worker；切换阶数保留线程和已经生成的求解表。 */
+      constructor(order, onStatus, onResult) {
+        this.order = order; this.onStatus = onStatus; this.onResult = onResult; this.status = 'loading';
+        this.requestId = null; this.activeRequest = null; this.pendingRequest = null;
+        const source = `(${solverWorkerMain.toString()})(${order});`;
+        const url = URL.createObjectURL(new Blob([source], { type: 'text/javascript' }));
+        try {
+          this.worker = new Worker(url);
+          this.worker.onmessage = event => this.receive(event.data);
+          this.worker.onerror = event => { event.preventDefault(); this.fail(); };
+          this.timer = setTimeout(() => this.fail(), order === 4 ? 180000 : 90000);
+        } catch (error) { this.fail(); }
+        finally { URL.revokeObjectURL(url); }
+      }
+      /** 结束后台任务后释放队列；旧请求只清理自身，不得触发当前界面回调。 */
+      receive(message) {
+        if (this.disposed) return;
+        if (message.type === 'ready') {
+          clearTimeout(this.timer); this.status = 'ready'; this.onStatus('ready', this); return;
+        }
+        if (message.type === 'failure') { this.fail(); return; }
+        if (!this.activeRequest || message.id !== this.activeRequest.id) return;
+        clearTimeout(this.timer); this.activeRequest = null;
+        if (message.id === this.requestId) { this.requestId = null; this.onResult(message, this); }
+        this.startPending();
+      }
+      /** 重置或切换只作废请求；同步搜索在后台结束后继续复用求解表。 */
+      cancel() { this.requestId = null; this.pendingRequest = null; }
+      /** 故障时释放线程与表；下一次进入该阶数会重新创建。 */
+      dispose() {
+        this.disposed = true; this.cancel(); this.activeRequest = null; clearTimeout(this.timer);
+        if (this.worker) this.worker.terminate();
+      }
+      /** 故障通知带上实例身份，非当前阶数的失败不能覆盖当前界面。 */
+      fail() { if (this.disposed) return; this.dispose(); this.status = 'error'; this.onStatus('error', this); }
+      /** 每阶至多保留一个正在计算和一个最新待算请求，避免快速切换累积任务。 */
+      solve(id, facelets) {
+        if (this.disposed || this.status !== 'ready') return;
+        this.requestId = id; this.pendingRequest = { id, facelets }; this.startPending();
+      }
+      /** 旧搜索真正结束后再提交最新快照，超时只计算该次实际搜索的耗时。 */
+      startPending() {
+        if (this.disposed || this.activeRequest || !this.pendingRequest) return;
+        this.activeRequest = this.pendingRequest; this.pendingRequest = null;
+        this.timer = setTimeout(() => this.fail(), this.order === 4 ? 120000 : 60000);
+        try { this.worker.postMessage(this.activeRequest); } catch (error) { this.fail(); }
+      }
+    }
+
+    // 四、练习统计与独立手册。计时使用单调时钟，不依赖每秒定时器累加。
+    class PracticeSession {
+      /** 创建一轮练习；首次手动动作前不计时。 */
+      constructor() { this.reset(); }
+      /** 重新打乱或重置时清空本轮统计。 */
+      reset(status = 'idle') { this.status = status; this.steps = 0; this.elapsed = 0; this.started = null; this.assisted = false; }
+      /** 手动动作开始计时；完成后的撤销继续原轮，普通转动开始新一轮。 */
+      begin(kind) {
+        if ((this.status === 'finished' && kind !== 'undo') || this.status === 'automatic') this.reset();
+        if (this.started === null) this.started = performance.now();
+        this.status = 'running';
+      }
+      /** 获取包含当前进行时段的总用时。 */
+      milliseconds() { return this.elapsed + (this.started === null ? 0 : performance.now() - this.started); }
+      /** 停表并保留最终值，浏览器后台停帧也不会漏算时间。 */
+      stop(status) { this.elapsed = this.milliseconds(); this.started = null; this.status = status; }
+      /** 每个实际完成的手动动作计一步，包括半转、中层和撤销。 */
+      record(solved) { this.steps++; if (solved) this.stop('finished'); }
+      /** 输出当前练习类别，辅助与自动复原不冒充独立完成。 */
+      label() {
+        const labels = { idle: '打乱后，首次手动转动开始计时', scrambling: '打乱中 · 不计步、不计时', ready: '准备好了 · 第一步开始计时', running: '手动复原中', finished: '手动复原完成', automatic: '自动复原 · 本轮不记作个人完成' };
+        return labels[this.status] + (this.assisted && this.status !== 'automatic' ? ' · 使用过提示' : '');
+      }
+    }
+
+    const RECIPES = [
+      { name: '四步手法 · 右手基础', formula: "R U R' U'", note: '用于熟悉右层与顶层配合，也常作为组合公式的片段。练习时保持 F 朝前；单独一次不能复原任意底角。连续六次可回到原状态。' },
+      { name: '顶层十字 · 棱块翻色', formula: "F R U R' U' F'", note: '前两层已完成且待复原面在 U。顶层两条定向棱呈一字时横放；呈小 L 时放在后、左。点形通常需多次识别后执行。此步形成顶层十字，不保证侧色已对齐。' },
+      { name: '中层右插棱', formula: "U R U' R' U' F' U F", note: '底层已完成；把不含顶色的目标棱放在 UF，朝前的颜色对齐 F 中心，另一色匹配 R 中心时使用，将它插入 FR 槽。' },
+      { name: '中层左插棱', formula: "U' L' U L U F U' F'", note: '底层已完成；目标棱放在 UF，朝前颜色对齐 F 中心，另一色匹配 L 中心时使用，将它插入 FL 槽。' },
+      { name: 'Sune · 顶角朝向', formula: "R U R' U R U2 R'", note: '用于匹配的顶角朝向案例。先在演示中观察唯一向上的顶色角及另外三角顶色的位置，再保持相同持握方向执行；并非所有“鱼形”都能用同一方向一次完成。' },
+      { name: 'T-perm · 顶层换位', formula: "R U R' U' R' F R2 U' R' U' R U R' F'", note: '前两层、顶面朝向均已完成时，用于对应的顶层两角与两棱换位。先匹配演示中的侧面颜色分布；它不处理顶面翻色。' },
+      { name: '中层练习 · 棱块循环', formula: "M2 U M2 U2 M2 U M2", note: '适用于匹配的三条顶层棱循环案例，练习 M 与 U 的配合。注意 M 跟 L 同向，M2 每次转 180°。观察演示后再对齐同样的案例。' }
+    ];
+
+    const ORDER_CONTENT = {
+      2: {
+        title: '二阶 · 从八个角块开始', note: '六个外层 · 无中层、棱块或中心块',
+        symbols: '二阶只有 U F D B L R 六个外层，没有 M/E/S 或内层宽转。每个字母都支持反向与半转。字母始终对应固定空间方向；配色图例表示初始朝向。',
+        tips: [
+          ['先认角块', '二阶只有 8 个角块、24 个贴面，没有棱块与中心块。一个角块的三种颜色决定它的位置；不要把“一个面颜色相同”误认为整层已经还原。'],
+          ['先做完整底层', '从任意底角开始，配好其余三个底角。除了底面同色，还要检查四个侧面的底排颜色分别一致。'],
+          ['再做顶面朝向', '底层朝下，观察上层四个角上的顶色。Sune 只能处理对应持握方向的案例；先在常用公式里观察匹配案例，再练转动。'],
+          ['最后调整顶角位置', '顶面同色以后检查侧面。用顶角换位公式把四角放回正确槽位，再用 U / U\' / U2 对齐顶层。'],
+          ['进阶：Ortega', 'Ortega 通常先完成一面，再处理顶面朝向，最后同时排列上下层角块（PBL）。它与“先完成整个底层”的入门路线不同，适合熟悉基础后学习。'],
+          ['提示与计时', '提示只给当前状态的有效下一步，不保证二阶最短解。打乱后第一步开始计时，半转也计一步。查看手册不暂停计时，演示魔方完全独立。']
+        ],
+        recipes: [
+          { name: '四步手法 · 角块控制', formula: "R U R' U'", note: '熟悉顶层和右层角块的移动。它是手法练习与组合片段，单独一次不能解决任意底角；连续六次可回到原状态。' },
+          { name: 'Sune · 顶角朝向', formula: "R U R' U R U2 R'", note: '保持已还原底层在 D，匹配演示中的顶色角分布后使用。不要仅凭“鱼形”名称判断持握方向。' },
+          { name: '反 Sune · 另一类顶角朝向', formula: "R U2 R' U' R U' R'", note: 'Sune 的逆公式，处理相反方向的匹配朝向案例。先观察练习魔方上的顶色分布。' },
+          { name: '顶角相邻换位', formula: "R U R' U' R' F R2 U' R' U' R U R' F'", note: '顶、底面朝向已经正确时，匹配演示中的相邻顶角交换案例。二阶只看角块，末尾可能需要 U 调整对齐。' },
+          { name: '顶角对角换位', formula: "F R U' R' U' R U R' F' R U R' U' R' F R F'", note: '匹配顶层对角交换的侧面色分布后使用。先看演示，不要在底层尚未完成时直接套公式。' }
+        ]
+      },
+      3: {
+        title: '三阶 · 经典六色挑战', note: '六个外层 + M / E / S 中层',
+        symbols: 'M 是左右之间的一层，跟 L 同向；E 是上下之间的一层，跟 D 同向；S 是前后之间的一层，跟 F 同向。都支持反向和半转。中层会带走中心块，字母仍指固定空间层。',
+        tips: [
+          ['先认中心，再找块', '中心决定该面目标颜色，棱块有两色，角块有三色。经过 M/E/S 后重新观察中心的位置。'],
+          ['层先法学习顺序', '先做底层十字并对齐侧色，再完成底角、中层棱、顶层十字、顶角朝向与顶层排列。每个阶段先识别案例与持握方向，再使用相应公式。'],
+          ['理解逆公式', 'R U R\' U\' 的逆公式是 U R U\' R\'：顺序倒过来，每一步反向，半转保持不变。先稳定练好短手法。'],
+          ['CFOP 进阶', 'CFOP 包括十字、F2L（前两层配对）、OLL（顶面朝向）、PLL（顶层排列）。先学少量公式，再逐渐扩充。'],
+          ['提示与个人练习', '提示是一条有效解法的下一步，不保证最短，也不按层先法讲解。改变状态后重新请求提示；查看手册不暂停计时。']
+        ], recipes: RECIPES
+      },
+      4: {
+        title: '四阶 · 中心、配棱与降阶', note: '六个外层 + 六个内层 + 六种双层宽转',
+        symbols: '2R 表示从右面数第二层，只转内层；R2 表示右侧外层转 180°；2R2 是右侧第二层转 180°。Rw 是右侧外层和相邻内层一起转，Rw2 为两层一起半转。其他五个面同理。四阶没有唯一中层，因此不使用 M/E/S。x/y/z 是整个魔方跟 R/U/F 同向转体，仅用于手册演示。',
+        tips: [
+          ['认识四阶', '四阶有 8 个角块、24 个翼棱块、24 个中心块，共 96 个贴面。每面四个中心没有固定轴心，必须自己拼成正确颜色与相对顺序。'],
+          ['先做六面中心', '先拼两个相对面的 2×2 中心，再拼其余四面。遵循初始配色：黄对白、红对橙、蓝对绿，并保留正确的相邻顺序，不能只检查对面。'],
+          ['配成十二条棱', '把同一对颜色的两块翼棱配成一条，转到不会被拆散的位置暂存。每次内层转动后恢复被拆开的中心，重复直至 12 条棱全部成对。'],
+          ['降阶成三阶', '中心完成、翼棱配对后，把每组中心当作三阶中心、每对翼棱当作三阶棱，主要用外层转动完成三阶式复原。不要再随意转内层拆开已配好的棱。'],
+          ['OLL 特殊情况：单条配棱翻转', '降阶后可能出现三阶不可能出现的单条配棱翻转。这是四阶合法状态，不是模型错误。把目标配棱放到 UF，按手册的内层翻棱公式处理后继续复原。'],
+          ['PLL 特殊情况：两条配棱交换', '顶面朝向正确但出现两条配棱交换时，三阶公式无法直接处理。用四阶排列奇偶公式打破限制，再完成常规顶层排列与对齐。'],
+          ['Yau 与练习建议', '入门先练中心 → 配棱 → 三阶降阶 → 特殊情况。熟悉后再学 Yau 的中心与底十字配合。宽转与单内层不要混淆，先用演示观察目标层。'],
+          ['自动求解与提示', '后台算法会处理中心、翼棱配对与奇偶情况。四阶初始化和搜索比二、三阶更久，页面会显示准备/计算状态，其间仍可观察、重置或切换阶数。提示不保证最短解，也不按教学阶段划分。']
+        ],
+        recipes: [
+          { name: '宽转基础 · 两层一起', formula: "Rw U Rw' U'", note: '观察 Rw 同时转右侧两层，而 U 只转上面一层。这是手法与块移动练习，不能独立完成所有中心。' },
+          { name: '中心块交换练习', formula: "2R U 2R' U'", note: '观察单内层与外层配合如何移动中心条。先在练习模型中追踪色块，理解交换与恢复，不把它当作万能中心公式。' },
+          { name: '配棱：移出与恢复', formula: "Uw L' U' L Uw'", note: '学习宽转、把已配棱移出工作位置、恢复内层的思路。具体能否配成目标棱取决于翼棱起始位置与朝向，先匹配演示案例。' },
+          { name: 'OLL 特殊情况 · 单条配棱翻转', formula: "2R2 B2 U2 2L U2 2R' U2 2R U2 F2 2R F2 2L' B2 2R2", note: '中心与其余翼棱已配好，目标配棱位于 UF。这里的 2R / 2L 仅指内层，不是宽转；用于修正四阶的翻棱奇偶情况。' },
+          { name: 'PLL 特殊情况 · 配棱换位', formula: "2R2 U2 2R2 Uw2 2R2 Uw2 U2", note: '用于 UF 与 UB 两条配棱交换的案例，其他块保持复原。2R2 是右侧第二层半转，Uw2 是上面两层一起半转；若原状态还有其他顶层换位，修正奇偶性后继续三阶排列。' },
+          { name: '降阶后 · 顶层十字', formula: "F R U R' U' F'", note: '仅在六面中心和十二条配棱完成后作为三阶十字公式使用。若是单条配棱翻转，先使用四阶特殊情况公式。' },
+          { name: '降阶后 · 顶角朝向', formula: "R U R' U R U2 R'", note: '配棱与中心完成后，匹配三阶 Sune 的角块持握方向使用。它不能处理翼棱配对或奇偶情况。' }
+        ]
+      }
+    };
+
+    class FormulaHandbook {
+      /** 绑定手册交互，首次打开才创建第二个 WebGL 画布。 */
+      constructor() {
+        this.dialog = document.getElementById('manual-dialog');
+        this.symbol = 'U'; this.queue = []; this.active = null;
+        this.model = new CubeState(currentOrder);
+        document.getElementById('close-manual').addEventListener('click', () => this.dialog.close());
+        this.dialog.addEventListener('close', () => this.reset());
+        document.getElementById('lesson-reset').addEventListener('click', () => this.reset());
+        for (const tab of this.dialog.querySelectorAll('[data-tab]')) tab.addEventListener('click', () => {
+          this.reset();
+          for (const button of this.dialog.querySelectorAll('[data-tab]')) {
+            const selected = button === tab;
+            button.setAttribute('aria-pressed', String(selected));
+            document.getElementById('manual-' + button.dataset.tab).hidden = !selected;
+          }
+        });
+        this.setOrder(currentOrder);
+        for (const [id, suffix] of [['demo-normal', ''], ['demo-inverse', "'"], ['demo-double', '2']]) {
+          document.getElementById(id).addEventListener('click', () => this.demonstrate(this.symbol + suffix, false));
+        }
+      }
+      /** 更新各阶符号、独立模型、公式与技巧，旧演示不能跨阶继续。 */
+      setOrder(order) {
+        this.reset(); this.symbol = 'U'; this.model = new CubeState(order);
+        for (const button of this.dialog.querySelectorAll('[data-tab]')) { const selected = button.dataset.tab === 'symbols'; button.setAttribute('aria-pressed', String(selected)); document.getElementById('manual-' + button.dataset.tab).hidden = !selected; }
+        if (this.view) { this.view.model = this.model; this.view.rebuild(); }
+        document.getElementById('manual-title').textContent = `${order} 阶魔方公式手册`;
+        document.getElementById('symbol-buttons').replaceChildren();
+        document.getElementById('recipe-list').replaceChildren();
+        document.getElementById('order-symbol-help').textContent = ORDER_CONTENT[order].symbols;
+        const tips = document.getElementById('manual-tips'); tips.replaceChildren();
+        for (const [title, text] of ORDER_CONTENT[order].tips) { const heading = document.createElement('h3'); heading.textContent = title; const paragraph = document.createElement('p'); paragraph.textContent = text; tips.append(heading, paragraph); }
+        for (const symbol of turnSymbols(order).concat(order === 4 ? ['x', 'y', 'z'] : [])) {
+          const button = document.createElement('button'); button.textContent = symbol;
+          button.dataset.symbol = symbol; button.setAttribute('aria-pressed', 'false');
+          button.addEventListener('click', () => this.selectSymbol(symbol));
+          document.getElementById('symbol-buttons').appendChild(button);
+        }
+
+        for (const recipe of ORDER_CONTENT[order].recipes) {
+          const card = document.createElement('article'); card.className = 'recipe';
+          const title = document.createElement('h3'); title.textContent = recipe.name;
+          const code = document.createElement('code'); code.textContent = recipe.formula;
+          const note = document.createElement('p'); note.textContent = recipe.note;
+          const button = document.createElement('button'); button.textContent = '查看匹配案例并演示 →';
+          button.addEventListener('click', () => this.demonstrate(recipe.formula, true, recipe.name));
+          card.append(title, code, note, button); document.getElementById('recipe-list').appendChild(card);
+        }
+      }
+      /** 打开隔离的学习场景，不更改主模型、历史或计时。 */
+      open() {
+        this.dialog.showModal(); this.dialog.scrollTop = 0;
+        if (!this.view) this.view = new CubeView(document.getElementById('lesson-viewport'), this.model);
+        this.view.resize();
+        this.selectSymbol(this.symbol);
+      }
+      /** 清空演示队列和模型，关闭弹窗后也不会继续播放。 */
+      reset() {
+        this.active = null; this.queue = []; this.model.reset();
+        if (this.view) { this.view.sync(); this.view.clearGuide(); this.view.controls.reset(); }
+        document.getElementById('lesson-title').textContent = '独立练习魔方';
+        document.getElementById('lesson-status').textContent = '已重置练习。选择符号或公式开始演示。';
+      }
+      /** 选择当前阶数的符号，分别演示正向、反向与半转。 */
+      selectSymbol(symbol) {
+        this.reset(); this.symbol = symbol;
+        for (const button of this.dialog.querySelectorAll('[data-symbol]')) button.setAttribute('aria-pressed', String(button.dataset.symbol === symbol));
+        document.getElementById('symbol-description').textContent = describeMove(symbol) + '。加英文单引号反向，后缀 2 为半转；金色描边为目标层。';
+        for (const [id, suffix] of [['demo-normal', ''], ['demo-inverse', "'"], ['demo-double', '2']]) document.getElementById(id).textContent = '演示 ' + symbol + suffix;
+        document.getElementById('lesson-title').textContent = describeMove(symbol);
+        document.getElementById('lesson-status').textContent = describeMove(symbol);
+        if (this.view) this.view.showGuide(symbol);
+      }
+      /** 从标准状态或逆公式案例开始演示，预留观察箭头与案例的时间。 */
+      demonstrate(formula, matchingCase, name = '') {
+        this.reset();
+        const moves = parseFormula(formula, this.model.order);
+        if (matchingCase) this.model.applyFormula(inverseFormula(formula));
+        this.view.sync(); this.view.showGuide(moves[0]);
+        this.queue = moves; this.total = moves.length; this.done = 0;
+        this.readyAt = performance.now() + (matchingCase ? 1800 : 700);
+        // 手机手册单列排列，开始演示时回到画布，确保用户能看到转动。
+        if (window.matchMedia('(max-width: 600px)').matches) this.dialog.scrollTo({ top: 0, behavior: 'smooth' });
+        document.getElementById('lesson-title').textContent = name || describeMove(formula);
+        document.getElementById('lesson-status').textContent = matchingCase ? '观察匹配案例；即将逐步执行：' + formula : '沿箭头方向转动，注意目标层。';
+      }
+      /** 仅在手册打开时播放与绘制独立演示。 */
+      tick(time) {
+        if (!this.dialog.open || !this.view) return;
+        if (!this.active && this.queue.length && time >= this.readyAt) {
+          const move = this.queue.shift();
+          this.view.clearGuide();
+          this.active = { move, spec: this.view.begin(move), start: time, duration: move.endsWith('2') ? 750 : 500 };
+          document.getElementById('lesson-status').textContent = `${this.done + 1} / ${this.total} · ${describeMove(move)}`;
+        }
+        if (this.active) {
+          const t = Math.min((time - this.active.start) / this.active.duration, 1);
+          this.view.turn(this.active.spec, t * t * (3 - 2 * t));
+          if (t === 1) {
+            this.model.apply(this.active.move); this.view.sync(); this.active = null; this.done++;
+            this.readyAt = time + 200;
+            if (!this.queue.length) document.getElementById('lesson-status').textContent = `演示完成 · ${this.done} 步${this.model.isSolved() ? ' · 六面已复原' : ' · 可重复演示或切换符号'}`;
+          }
+        }
+        this.view.render();
+      }
+    }
+
+    // 五、统一动作队列、撤销与提示。只有已完成的动作可以进入历史。
+    const ui = {};
+    for (const id of ['viewport', 'boot-message', 'cube-status', 'scramble', 'solve', 'reset', 'feedback', 'solver-status', 'task-status', 'step-count', 'progress', 'algorithm', 'log', 'hint', 'undo', 'restore-view', 'apply-hint', 'hint-text', 'stage-hint', 'move-count', 'elapsed', 'practice-status', 'turn-buttons', 'open-manual']) ui[id] = document.getElementById(id);
+    let model, view, solver, handbook;
+    const practice = new PracticeSession();
+    // 按需缓存，最多三个 Worker；刷新或关闭页面时由浏览器释放。
+    const solverCache = new Map();
+    let busy = false, generation = 0, active = null, queue = [], completed = 0, total = 0, taskName = '', taskKind = '', gesture = null;
+    let history = [], hintMove = null, solutionCache = null, solverPurpose = null;
+    let interactionMode = 'turn';
+
+    /** 显示非阻塞提示，非法输入使用错误颜色。 */
+    function feedback(message, error = false) { ui.feedback.textContent = message; ui.feedback.classList.toggle('error', error); }
+    /** 更新统计显示；数值不变时不反复修改 DOM。 */
+    function updateStats() {
+      const tenths = Math.floor(practice.milliseconds() / 100);
+      const seconds = (tenths / 10).toFixed(1);
+      const elapsed = tenths < 600 ? seconds + '″' : `${Math.floor(tenths / 600)}:${((tenths % 600) / 10).toFixed(1).padStart(4, '0')}`;
+      if (ui.elapsed.textContent !== elapsed) ui.elapsed.textContent = elapsed;
+      if (ui['move-count'].textContent !== String(practice.steps)) ui['move-count'].textContent = practice.steps;
+      const label = practice.label();
+      if (ui['practice-status'].textContent !== label) ui['practice-status'].textContent = label;
+    }
+    /** 更新可用操作；观察视角、手册和重置不受播放锁影响。 */
+    function updateUI() {
+      ui.scramble.disabled = busy;
+      ui.solve.disabled = ui.hint.disabled = busy || !solver || solver.status !== 'ready';
+      ui.undo.disabled = busy || !history.length;
+      ui['apply-hint'].disabled = busy || !hintMove;
+      for (const button of ui['turn-buttons'].querySelectorAll('button')) button.disabled = busy;
+      ui.reset.disabled = ui['restore-view'].disabled = ui['open-manual'].disabled = false;
+      const solved = model.isSolved();
+      const facelets = model.facelets();
+      for (const swatch of document.querySelectorAll('[data-center]')) {
+        const index = Object.keys(FACES).indexOf(swatch.dataset.center) * model.order * model.order + Math.floor(model.order * model.order / 2);
+        const color = model.order === 3 ? facelets[index] : swatch.dataset.center;
+        swatch.style.setProperty('--color', '#' + COLORS[color].toString(16).padStart(6, '0'));
+        swatch.parentElement.title = model.order === 3 ? '当前中心颜色' : '初始朝向配色（偶数阶无固定中心）';
+      }
+      ui['cube-status'].textContent = active ? '转动中' : solved ? '已复原' : '已打乱';
+      ui['cube-status'].classList.toggle('mixed', Boolean(active) || !solved);
+      updateStats();
+    }
+    /** 追加有限长度的步骤日志，避免长期操作积累 DOM。 */
+    function addLog(message) {
+      const line = document.createElement('div'); line.textContent = message; ui.log.appendChild(line);
+      while (ui.log.children.length > 100) ui.log.firstElementChild.remove();
+      ui.log.scrollTop = ui.log.scrollHeight;
+    }
+    /** 更新公式播放进度，它与本轮个人步数分别显示。 */
+    function showProgress() {
+      ui['step-count'].textContent = `${completed} / ${total}`; ui.progress.max = total || 1; ui.progress.value = completed;
+      const previous = ui.algorithm.children[completed - 1], current = ui.algorithm.children[completed];
+      if (previous) previous.className = 'move done';
+      if (current) { current.className = 'move current'; ui.algorithm.scrollTop = current.offsetTop - ui.algorithm.offsetTop; }
+    }
+    /** 清除当前可见提示，任何状态转动开始后旧箭头都不能继续执行。 */
+    function clearHint(message = '状态已改变，点击「求助提示」查看下一步。') {
+      hintMove = null; view.clearGuide(); ui['stage-hint'].hidden = true;
+      ui['apply-hint'].hidden = true; ui['apply-hint'].disabled = true; ui['hint-text'].textContent = message;
+    }
+    /** 只在走了缓存路径的下一步时保留剩余解法，否则使它失效。 */
+    function advanceSolution(move, before) {
+      if (solutionCache && solutionCache.facelets === before && solutionCache.moves[0] === move) {
+        solutionCache = { facelets: model.facelets(), moves: solutionCache.moves.slice(1) };
+      } else solutionCache = null;
+    }
+    /** 启动统一队列；任务类型决定计步、历史和完成状态。 */
+    function play(moves, name, kind = 'manual') {
+      if (busy || !moves.length) return;
+      generation++; busy = true; solverPurpose = null;
+      clearHint();
+      if (kind === 'scramble') { practice.reset('scrambling'); history = []; solutionCache = null; }
+      else if (kind === 'automatic') { practice.stop('automatic'); history = []; }
+      else {
+        if (kind !== 'undo' && ['finished', 'automatic'].includes(practice.status)) history = [];
+        practice.begin(kind);
+      }
+      queue = moves.slice(); completed = 0; total = moves.length; taskName = name; taskKind = kind;
+      ui.algorithm.replaceChildren(); ui.log.replaceChildren();
+      for (const move of moves) { const span = document.createElement('span'); span.className = 'move'; span.textContent = move; ui.algorithm.appendChild(span); }
+      ui.algorithm.scrollTop = 0;
+      feedback(`${name} · 共 ${total} 步，可随时点击重置。`);
+      startNext();
+    }
+    /** 准备下一步动画；打乱完成后才允许开始个人计时。 */
+    function startNext() {
+      if (!queue.length) {
+        active = null; busy = false;
+        if (taskKind === 'scramble') practice.reset('ready');
+        ui['task-status'].textContent = `${taskName}完成`;
+        feedback(model.isSolved() ? '已复原，每一面都归位了。' : `${taskName}完成，继续探索吧。`);
+        if (model.isSolved()) clearHint('魔方已经复原。可以重新打乱，开始下一轮。');
+        showProgress(); updateUI(); return;
+      }
+      const move = queue.shift();
+      active = { move, spec: view.begin(move), start: null, duration: move.endsWith('2') ? 380 : 260 };
+      ui['task-status'].textContent = `${taskName} · ${move}`;
+      showProgress(); updateUI();
+    }
+    /** 驱动主动画，在同一次提交中同步模型、历史、计步与缓存。 */
+    function frame(time) {
+      if (active) {
+        if (active.start === null) active.start = time;
+        const progress = Math.min((time - active.start) / active.duration, 1);
+        view.turn(active.spec, progress * progress * (3 - 2 * progress));
+        if (progress === 1) {
+          const before = model.facelets(), move = active.move;
+          model.apply(move); view.sync(); advanceSolution(move, before);
+          if (taskKind === 'manual' || taskKind === 'undo') {
+            if (taskKind === 'undo') history.pop(); else history.push(move);
+            practice.record(model.isSolved() && !queue.length);
+          }
+          completed++; addLog(`${String(completed).padStart(2, '0')}  ${move}  · ${taskKind === 'undo' ? '已撤销上一步' : '完成'}`);
+          startNext();
+        }
+      }
+      updateStats(); view.render();
+      if (handbook) handbook.tick(time);
+      requestAnimationFrame(frame);
+    }
+    /** 逐个撤销已完成的手动转层动作。 */
+    function undoLast() {
+      if (busy || !history.length) return;
+      play([inverseFormula(history[history.length - 1])], '撤销', 'undo');
+    }
+    /** 显示一条已验证路径的下一步，只展示引导，不改变状态。 */
+    function revealHint() {
+      if (!solutionCache || solutionCache.facelets !== model.facelets() || !solutionCache.moves.length) return;
+      hintMove = solutionCache.moves[0]; practice.assisted = true;
+      view.showGuide(hintMove); ui['stage-hint'].textContent = describeMove(hintMove); ui['stage-hint'].hidden = false;
+      ui['hint-text'].textContent = describeMove(hintMove) + '。金色描边为目标层，可自行转动，或点击下方按钮。';
+      ui['apply-hint'].textContent = `按提示转动 ${hintMove}`; ui['apply-hint'].hidden = false;
+      ui['task-status'].textContent = '已显示下一步提示';
+      ui.algorithm.textContent = hintMove; ui['step-count'].textContent = '— / —'; ui.progress.value = 0;
+      feedback('提示已显示；还没有执行任何转动。'); updateUI();
+    }
+    /** 提示与自动复原共用当前状态快照；缓存命中时无需重复求解。 */
+    function requestSolution(purpose) {
+      if (busy || !solver || solver.status !== 'ready') return;
+      if (model.isSolved()) { clearHint('魔方已经复原，可以先打乱再试试。'); feedback('魔方已经复原。'); updateUI(); return; }
+      if (solutionCache && solutionCache.facelets === model.facelets() && solutionCache.moves.length) {
+        if (purpose === 'hint') revealHint(); else play(solutionCache.moves, '自动复原', 'automatic');
+        return;
+      }
+      busy = true; generation++; solverPurpose = purpose;
+      clearHint(purpose === 'hint' ? '正在为当前状态计算下一步…' : '正在计算完整还原路径…');
+      ui['task-status'].textContent = purpose === 'hint' ? '正在计算下一步…' : '正在计算还原公式…';
+      ui['step-count'].textContent = '— / —'; ui.progress.value = 0;
+      ui.algorithm.textContent = '正在寻找当前状态的还原路径…'; ui.log.replaceChildren();
+      feedback('正在后台求解，仍可旋转视角或重置魔方。'); updateUI();
+      solver.solve(generation, model.facelets());
+    }
+    /** 检查任务编号与解法，重置后的过期提示不能重新出现。 */
+    function receiveSolution(message, source) {
+      if (source !== solver) return;
+      if (message.id !== generation || !busy || !solverPurpose) return;
+      const purpose = solverPurpose; solverPurpose = null;
+      try {
+        if (message.type !== 'solution') throw new Error('求解失败，请重试。');
+        const moves = parseFormula(message.formula);
+        if (!model.verifies(moves)) throw new Error('还原公式未通过状态验证，请重试。');
+        solutionCache = { facelets: model.facelets(), moves }; busy = false;
+        if (purpose === 'hint') revealHint(); else play(moves, '自动复原', 'automatic');
+      } catch (error) {
+        busy = false; ui['task-status'].textContent = '求解未完成'; ui.algorithm.textContent = '未执行任何还原动作。';
+        ui['step-count'].textContent = '0 / 0'; clearHint('未能获得提示，请重试。'); feedback(error.message, true); updateUI();
+      }
+    }
+    /** 只创建尚未访问或已经故障的求解器，其余直接复用（含仍在初始化的实例）。 */
+    function activateSolver(order) {
+      let cached = solverCache.get(order);
+      if (!cached || cached.disposed) {
+        cached = new CubeSolver(order, solverStatus, receiveSolution); solverCache.set(order, cached);
+      }
+      solver = cached; solverStatus(cached.status, cached);
+    }
+    /** 只展示当前实例状态；其他阶数在后台初始化或失败不改变当前操作区。 */
+    function solverStatus(status, source) {
+      if (source !== solver) return;
+      ui['solver-status'].textContent = status === 'ready' ? '求解器已就绪 · 切换阶数可直接复用' : status === 'loading' ? `${currentOrder} 阶求解器准备中 · 首次使用需稍候，可先手动练习` : '求解器不可用 · 检查网络后切换阶数重试';
+      ui['solver-status'].classList.toggle('ready', status === 'ready');
+      if (status === 'error' && busy && solverPurpose) {
+        busy = false; solverPurpose = null; generation++;
+        ui['task-status'].textContent = '求解未完成'; ui['step-count'].textContent = '0 / 0'; ui.algorithm.textContent = '未执行任何还原动作。';
+        clearHint('求解器不可用，仍可自行转动或查阅手册。'); feedback('后台求解未能完成，可以继续手动操作。', true);
+      }
+      updateUI();
+    }
+    /** 释放色块手势，恢复鼠标视角控制。 */
+    function releaseGesture() {
+      if (!gesture) return;
+      const id = gesture.id; gesture = null; const canvas = view.renderer.domElement;
+      if (canvas.hasPointerCapture(id)) canvas.releasePointerCapture(id);
+      canvas.style.cursor = 'grab';
+    }
+    /** 中断主任务并清空统计、撤销和提示；手册始终独立。 */
+    function resetAll() {
+      if (solver) solver.cancel();
+      generation++; active = null; queue = []; busy = false; solverPurpose = null;
+      completed = total = 0; history = []; solutionCache = null; practice.reset(); releaseGesture();
+      model.reset(); view.sync(); view.controls.reset(); clearHint('点击「求助提示」，在 3D 魔方上查看目标层和转动箭头。');
+      ui['task-status'].textContent = '等待开始'; ui['step-count'].textContent = '0 / 0';
+      ui.progress.max = 1; ui.progress.value = 0; ui.algorithm.textContent = '你的下一步，从这里开始。'; ui.log.textContent = '已重置至初始状态。';
+      feedback('已重置，开始下一次探索吧。'); updateUI();
+    }
+    /** 仅恢复观察角度，不改变逻辑状态、历史和练习时间。 */
+    function restoreView() { view.controls.reset(); if (hintMove) view.showGuide(hintMove); }
+    /** 手机显式区分拧层与观察，切换时释放未完成手势，不改变魔方状态。 */
+    function setInteractionMode(mode) {
+      releaseGesture(); interactionMode = mode;
+      for (const button of document.querySelectorAll('[data-interaction]')) button.setAttribute('aria-pressed', String(button.dataset.interaction === mode));
+      document.getElementById('touch-help').textContent = mode === 'turn' ? '单指拖动色块拧面 · 切换「旋转视角」观察与缩放' : '单指拖动旋转视角 · 双指捏合缩放';
+    }
+    /** 色块拖动拧所在层；手机观察模式将触摸完整交给相机控制器。 */
+    function bindGestures() {
+      const canvas = view.renderer.domElement; canvas.style.cursor = 'grab';
+      for (const button of document.querySelectorAll('[data-interaction]')) button.addEventListener('click', () => setInteractionMode(button.dataset.interaction));
+      // 宽屏隐藏触控切换后恢复默认拧层，避免窗口变宽后停留在不可见的观察模式。
+      const touchLayout = window.matchMedia('(pointer: coarse), (max-width: 900px)');
+      touchLayout.addEventListener('change', event => { if (!event.matches) setInteractionMode('turn'); });
+      // OrbitControls r128 另监听 TouchEvent；拧层模式拦截它，避免同时转层与转视角。
+      for (const type of ['touchstart', 'touchmove', 'touchend', 'touchcancel']) canvas.addEventListener(type, event => {
+        if (interactionMode !== 'turn') return;
+        event.stopImmediatePropagation(); event.preventDefault();
+        if (event.touches.length > 1) releaseGesture();
+      }, { capture: true, passive: false });
+      canvas.addEventListener('pointerdown', event => {
+        if (interactionMode !== 'turn') return;
+        if (event.button !== 0 || !event.isPrimary) return;
+        const hit = view.pick(event.clientX, event.clientY); if (!hit) return;
+        event.stopImmediatePropagation(); event.preventDefault(); if (busy) return;
+        gesture = { id: event.pointerId, x: event.clientX, y: event.clientY, hit, used: false };
+        canvas.setPointerCapture(event.pointerId); canvas.style.cursor = 'grabbing';
+      }, true);
+      canvas.addEventListener('pointermove', event => {
+        if (!gesture || event.pointerId !== gesture.id) return;
+        event.stopImmediatePropagation(); event.preventDefault(); if (gesture.used) return;
+        const dx = event.clientX - gesture.x, dy = event.clientY - gesture.y; if (Math.hypot(dx, dy) < 8) return;
+        gesture.used = true; const move = view.dragMove(gesture.hit, dx, dy);
+        if (move) play([move], '手动拧面');
+      }, true);
+      for (const type of ['pointerup', 'pointercancel', 'lostpointercapture']) canvas.addEventListener(type, event => {
+        if (gesture && event.pointerId === gesture.id) { event.stopImmediatePropagation(); releaseGesture(); }
+      }, true);
+      window.addEventListener('blur', releaseGesture);
+    }
+    /** 按阶数重建转层按钮，四阶分组区分单内层和双层宽转。 */
+    function renderTurnButtons() {
+      ui['turn-buttons'].replaceChildren(); ui['turn-buttons'].dataset.order = currentOrder;
+      const symbols = turnSymbols(currentOrder);
+      symbols.forEach((symbol, index) => {
+        if (currentOrder === 4 && index % 6 === 0) {
+          const title = document.createElement('div'); title.className = 'turn-group-title';
+          title.textContent = ['外层 · 一层', '单内层 · 从对应面数第二层', '宽转 · 相邻两层一起'][index / 6];
+          ui['turn-buttons'].appendChild(title);
+        }
+        const cell = document.createElement('div'); cell.className = 'turn-cell' + ('MES'.includes(symbol) || symbol.startsWith('2') ? ' slice' : ''); cell.dataset.face = symbol;
+        for (const suffix of ['', "'"]) {
+          const move = symbol + suffix, button = document.createElement('button');
+          button.textContent = move; button.dataset.move = move; button.title = describeMove(move); button.setAttribute('aria-label', describeMove(move));
+          button.addEventListener('click', () => play([move], '手动转层')); cell.appendChild(button);
+        }
+        ui['turn-buttons'].appendChild(cell);
+      });
+      document.getElementById('order-note').textContent = ORDER_CONTENT[currentOrder].title;
+      document.getElementById('stage-order').textContent = `${currentOrder} × ${currentOrder} × ${currentOrder}`;
+      document.getElementById('turn-note').textContent = "左侧正向 · 右侧 ' 反向；键盘 U F D B L R，Shift 反向。" + (currentOrder === 3 ? '另支持 M/E/S 中层。' : currentOrder === 4 ? 'Alt + 面字母转单内层；Alt + Ctrl + 面字母转宽层。' : '二阶只有六个外层。');
+      for (const button of document.querySelectorAll('[data-order]')) {
+        if (button.tagName === 'BUTTON') button.setAttribute('aria-pressed', String(Number(button.dataset.order) === currentOrder));
+      }
+    }
+    /** 切换阶数取消全部旧任务，复用画布并清空本轮统计和学习场景。 */
+    function switchOrder(order) {
+      if (![2, 3, 4].includes(order) || order === currentOrder) return;
+      resetAll(); solver = null; currentOrder = order;
+      model = new CubeState(order); view.model = model; view.rebuild();
+      if (handbook.dialog.open) handbook.dialog.close();
+      handbook.setOrder(order); renderTurnButtons();
+      ui.log.textContent = `已切换至 ${order} 阶，新一轮开始。`;
+      feedback(`${ORDER_CONTENT[order].title} · ${ORDER_CONTENT[order].note}`);
+      activateSolver(order);
+    }
+    /** 快捷键仅绑定一次；用物理键码兼容 Mac 的 Alt 组合字符。 */
+    function bindManualTurns() {
+      renderTurnButtons();
+      for (const button of document.querySelectorAll('button[data-order]')) button.addEventListener('click', () => switchOrder(Number(button.dataset.order)));
+      window.addEventListener('keydown', event => {
+        if (event.repeat || event.metaKey || event.isComposing || busy || handbook.dialog.open) return;
+        if (event.target.closest('input, textarea, select, [contenteditable="true"]')) return;
+        const face = event.code.replace(/^Key/, '');
+        if (!/^[UFDBLRMES]$/.test(face)) return;
+        let symbol = face;
+        if (event.altKey) {
+          if (currentOrder !== 4 || !/^[UFDBLR]$/.test(face)) return;
+          symbol = event.ctrlKey ? face + 'w' : '2' + face;
+        } else if (event.ctrlKey) return;
+        if (!turnSymbols(currentOrder).includes(symbol)) return;
+        event.preventDefault(); play([symbol + (event.shiftKey ? "'" : '')], '键盘转层');
+      });
+    }
+    /** 初始化主应用与独立学习模块，依赖故障时保留可读提示。 */
+    function boot() {
+      try {
+        if (!window.THREE || !THREE.OrbitControls || !window.Cube) throw new Error('依赖加载失败，请检查网络连接后刷新页面。');
+        model = new CubeState(); view = new CubeView(ui.viewport, model); handbook = new FormulaHandbook();
+        bindGestures(); bindManualTurns();
+        ui.scramble.addEventListener('click', () => play(makeScramble(), '随机打乱', 'scramble'));
+        ui.solve.addEventListener('click', () => requestSolution('automatic')); ui.hint.addEventListener('click', () => requestSolution('hint'));
+        ui.undo.addEventListener('click', undoLast); ui.reset.addEventListener('click', resetAll);
+        ui['restore-view'].addEventListener('click', restoreView); ui['open-manual'].addEventListener('click', () => handbook.open());
+        ui['apply-hint'].addEventListener('click', () => { if (hintMove) play([hintMove], '按提示转动'); });
+        ui['boot-message'].hidden = true; activateSolver(currentOrder); requestAnimationFrame(frame);
+      } catch (error) {
+        ui['boot-message'].hidden = false;
+        ui['boot-message'].textContent = error.message.includes('依赖') ? error.message : '3D 画布初始化失败，请使用支持 WebGL 的现代浏览器。';
+        ui['solver-status'].textContent = '初始化未完成'; feedback('请检查网络及浏览器的 WebGL 支持，然后刷新重试。', true); console.error(error);
+      }
+    }
+    boot();
+  </script>
+</body>
+</html>
